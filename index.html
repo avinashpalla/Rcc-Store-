@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Right Click Computers — Inventory & Stock Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .badge-glow { box-shadow: 0 0 15px rgba(6, 182, 212, 0.35); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- Header -->
+  <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- Logo & Branding -->
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 p-0.5 flex items-center justify-center shadow-lg badge-glow">
+          <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+            <svg class="w-7 h-7 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="3" width="12" height="18" rx="6"></rect>
+              <line x1="12" y1="3" x2="12" y2="10"></line>
+              <path d="M12 3h3a3 3 0 0 1 3 3v4h-6V3z" fill="currentColor" opacity="0.3"></path>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-extrabold tracking-tight text-white">RIGHT CLICK</span>
+            <span class="text-xl font-extrabold tracking-tight text-cyan-400">COMPUTERS</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium">Store Inventory & Multi-Device Sync</p>
+        </div>
+      </div>
+
+      <!-- Role Switcher & Sync Controls -->
+      <div class="flex items-center space-x-3">
+        
+        <!-- Cloud Sync Status -->
+        <button id="syncBtn" onclick="syncWithCloud()" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 transition">
+          <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="syncLabel">Synced</span>
+        </button>
+
+        <!-- Role Badge & Toggle Button -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button id="roleToggleBtn" onclick="openRoleModal()" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-cyan-600 text-white shadow-sm">
+            <span id="roleIcon">👑</span>
+            <span id="roleText">Owner Mode</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+    <!-- Metrics Bar (Owner-Only Metrics Blurred for Office Staff) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Items in Catalog</p>
+        <p id="metricTotalItems" class="text-2xl font-bold text-white mt-1">0</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Units in Stock</p>
+        <p id="metricTotalUnits" class="text-2xl font-bold text-cyan-400 mt-1">0</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Low Stock Warnings (&le; 2)</p>
+        <p id="metricLowStock" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Stock Value (INR)</p>
+        <p id="metricTotalValue" class="text-2xl font-bold text-emerald-400 mt-1">&#8377;0</p>
+        <div id="valueMaskOverlay" class="hidden absolute inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center text-xs font-semibold text-slate-400 space-x-1.5">
+          <span>🔒 Restricted to Owners</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inventory Actions Toolbar -->
+    <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+      
+      <!-- Search & Filters -->
+      <div class="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div class="relative flex-1">
+          <input type="text" id="searchInput" oninput="renderTable()" placeholder="Search by product name, SKU, or brand..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition">
+        </div>
+        
+        <select id="categoryFilter" onchange="renderTable()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-cyan-500 transition">
+          <option value="ALL">All Categories</option>
+          <option value="Components">Components (RAM, GPU, SSD)</option>
+          <option value="Accessories">Accessories & Peripherals</option>
+          <option value="Displays">Monitors & Displays</option>
+          <option value="Desktops">Desktops & Apple Mac</option>
+          <option value="Laptops">Laptops & Refurbished</option>
+          <option value="Repair Parts">Repair Spares & ICs</option>
+        </select>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <button onclick="openConfigModal()" title="Cloud Sync Settings" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-sm font-medium transition flex items-center space-x-1.5">
+          <span>⚙️ Sync Settings</span>
+        </button>
+        <button onclick="openItemModal()" class="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold transition flex items-center space-x-2 shadow-lg shadow-cyan-950">
+          <span class="text-base leading-none">+</span>
+          <span>Add Product</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="bg-slate-950/80 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+            <tr>
+              <th class="py-4 px-4">Item Details</th>
+              <th class="py-4 px-4">Category</th>
+              <th class="py-4 px-4 text-center">Stock Level</th>
+              <th class="py-4 px-4 text-center">Quick Adjust</th>
+              <th class="py-4 px-4 text-right">Selling Price</th>
+              <th class="py-4 px-4 text-right">Cost (Owner)</th>
+              <th class="py-4 px-4 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTableBody" class="divide-y divide-slate-800/60">
+            <!-- Rendered by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="hidden p-12 text-center text-slate-500">
+        No inventory items match your current filter.
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Add/Edit Product Modal -->
+  <div id="itemModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="itemModalTitle" class="text-lg font-bold text-white">Add New Product</h3>
+        <button onclick="closeItemModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <form id="itemForm" onsubmit="saveItem(event)" class="space-y-4">
+        <input type="hidden" id="itemId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Product Name</label>
+          <input type="text" id="itemName" required placeholder="e.g. Crucial P3 Plus 1TB NVMe SSD" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Category</label>
+            <select id="itemCategory" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+              <option value="Components">Components</option>
+              <option value="Accessories">Accessories</option>
+              <option value="Displays">Displays</option>
+              <option value="Desktops">Desktops</option>
+              <option value="Laptops">Laptops</option>
+              <option value="Repair Parts">Repair Parts</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Initial Quantity</label>
+            <input type="number" id="itemQuantity" min="0" required placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+
+        <!-- Price Fields (Owner-Only) -->
+        <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wide">Commercial Pricing</span>
+            <span id="priceRoleNotice" class="text-[11px] font-medium text-cyan-400">Owner Access Granted</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Selling Price (₹)</label>
+              <input type="number" id="itemSellingPrice" min="0" step="1" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Purchase / Cost (₹)</label>
+              <input type="number" id="itemCostPrice" min="0" step="1" placeholder="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+            </div>
+          </div>
+          <p id="priceLockHelp" class="text-[11px] text-amber-400/90 hidden">Office staff cannot view or amend pricing. Values will remain unchanged.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Storage Location / Shelf</label>
+          <input type="text" id="itemLocation" placeholder="e.g. Shelf B2, Counter Rack, Workshop Bench" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closeItemModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm font-medium hover:bg-slate-700 transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold transition">Save Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Role Verification Modal (PIN Entry) -->
+  <div id="roleModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+      <div class="text-center space-y-1">
+        <div class="w-12 h-12 mx-auto rounded-full bg-cyan-950 border border-cyan-800 flex items-center justify-center text-xl">
+          🔐
+        </div>
+        <h3 class="text-base font-bold text-white">Security Role Switcher</h3>
+        <p class="text-xs text-slate-400">Switch between Owner mode and Office Staff mode.</p>
+      </div>
+
+      <div class="space-y-3 pt-2">
+        <button onclick="switchRole('STAFF')" class="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-200 transition text-left flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-white">Office Staff Mode</div>
+            <div class="text-xs text-slate-400">Update stock, hide all prices</div>
+          </div>
+          <span>👤</span>
+        </button>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="text-xs font-semibold text-slate-300">Unlock Owner Mode</div>
+          <p class="text-[11px] text-slate-400">Enter owner PIN to view and edit prices (Default PIN: 9059)</p>
+          <input type="password" id="ownerPinInput" placeholder="Enter PIN" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 tracking-widest text-center">
+          <button onclick="verifyOwnerPin()" class="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition">Unlock Owner Privileges</button>
+        </div>
+      </div>
+
+      <div class="pt-2 text-center">
+        <button onclick="closeRoleModal()" class="text-xs text-slate-400 hover:text-white">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cloud Sync Configuration Modal -->
+  <div id="configModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white">Multi-Device Sync Setup</h3>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300">
+        <p>To automatically sync inventory across store PCs, laptops, and mobile phones without monthly fees, paste your Google Apps Script Web App URL below:</p>
+        <div>
+          <label class="block text-slate-400 uppercase font-bold mb-1">Apps Script Endpoint URL</label>
+          <input type="url" id="syncEndpointInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono">
+        </div>
+        <p class="text-[11px] text-slate-500">Every change is saved locally first and pushed asynchronously to the cloud endpoint.</p>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700">Cancel</button>
+        <button onclick="saveSyncConfig()" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">Save Endpoint</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    // Initial Seed Data aligned with Right Click Computers Products
+    const DEFAULT_INVENTORY = [
+      { id: "RC-101", name: "Corsair Vengeance 16GB DDR5 RAM", category: "Components", qty: 8, sellingPrice: 21990, costPrice: 18500, location: "Shelf A1" },
+      { id: "RC-102", name: "Crucial P3 Plus 1TB NVMe SSD", category: "Components", qty: 14, sellingPrice: 19000, costPrice: 16200, location: "Shelf A2" },
+      { id: "RC-103", name: "Logitech G502 Hero Gaming Mouse", category: "Accessories", qty: 5, sellingPrice: 3390, costPrice: 2750, location: "Counter Glass" },
+      { id: "RC-104", name: "GIGABYTE 25-Inch IPS FHD 240Hz Monitor", category: "Displays", qty: 2, sellingPrice: 11499, costPrice: 9800, location: "Display Rack 1" },
+      { id: "RC-105", name: "Ant Esports MK1300 V2 Mechanical Keyboard", category: "Accessories", qty: 7, sellingPrice: 1550, costPrice: 1150, location: "Shelf B1" },
+      { id: "RC-106", name: "ASUS Dual RX 7600 EVO 8GB GPU", category: "Components", qty: 3, sellingPrice: 26075, costPrice: 23200, location: "Secure Locker" },
+      { id: "RC-107", name: "Apple iMac 24-inch (M3)", category: "Desktops", qty: 1, sellingPrice: 134900, costPrice: 121000, location: "Front Display" },
+      { id: "RC-108", name: "Portronics Toad 27 Wireless Mouse", category: "Accessories", qty: 12, sellingPrice: 322, costPrice: 210, location: "Accessories Bin" },
+      { id: "RC-109", name: "Dell Latitude 5490 Motherboard (Pre-Tested)", category: "Repair Parts", qty: 3, sellingPrice: 4500, costPrice: 3000, location: "Lab Shelf 3" }
+    ];
+
+    const OWNER_PIN = "9059"; // Default PIN for Avinash / Owner
+    let currentRole = localStorage.getItem("rcc_role") || "OWNER";
+    let inventory = [];
+
+    // Load Inventory from localStorage or seed
+    function loadInventory() {
+      try {
+        const stored = localStorage.getItem("rcc_inventory");
+        if (stored) {
+          inventory = JSON.parse(stored);
+        } else {
+          inventory = [...DEFAULT_INVENTORY];
+          persistInventory();
+        }
+      } catch (e) {
+        inventory = [...DEFAULT_INVENTORY];
+      }
+      updateRoleUI();
+      renderTable();
+    }
+
+    function persistInventory() {
+      try {
+        localStorage.setItem("rcc_inventory", JSON.stringify(inventory));
+      } catch (e) {}
+      triggerBackgroundSync();
+    }
+
+    // Role Switching Logic
+    function updateRoleUI() {
+      const isOwner = currentRole === "OWNER";
+      const roleText = document.getElementById("roleText");
+      const roleIcon = document.getElementById("roleIcon");
+      const roleToggleBtn = document.getElementById("roleToggleBtn");
+      const valueMaskOverlay = document.getElementById("valueMaskOverlay");
+
+      if (isOwner) {
+        roleText.textContent = "Owner Mode";
+        roleIcon.textContent = "👑";
+        roleToggleBtn.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-cyan-600 text-white shadow-sm";
+        valueMaskOverlay.classList.add("hidden");
+      } else {
+        roleText.textContent = "Office Staff Mode";
+        roleIcon.textContent = "👤";
+        roleToggleBtn.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-slate-800 text-slate-300 border border-slate-700";
+        valueMaskOverlay.classList.remove("hidden");
+      }
+    }
+
+    function openRoleModal() {
+      document.getElementById("roleModal").classList.remove("hidden");
+      document.getElementById("ownerPinInput").value = "";
+    }
+
+    function closeRoleModal() {
+      document.getElementById("roleModal").classList.add("hidden");
+    }
+
+    function switchRole(role) {
+      currentRole = role;
+      localStorage.setItem("rcc_role", currentRole);
+      updateRoleUI();
+      renderTable();
+      closeRoleModal();
+    }
+
+    function verifyOwnerPin() {
+      const pin = document.getElementById("ownerPinInput").value.trim();
+      if (pin === OWNER_PIN) {
+        switchRole("OWNER");
+      } else {
+        alert("Incorrect PIN. Please re-enter.");
+      }
+    }
+
+    // Render Table and Metrics
+    function renderTable() {
+      const tbody = document.getElementById("inventoryTableBody");
+      const emptyState = document.getElementById("emptyState");
+      const searchQuery = document.getElementById("searchInput").value.toLowerCase().trim();
+      const selectedCat = document.getElementById("categoryFilter").value;
+      const isOwner = currentRole === "OWNER";
+
+      tbody.innerHTML = "";
+
+      let filtered = inventory.filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchQuery) || 
+                              item.id.toLowerCase().includes(searchQuery) ||
+                              (item.location && item.location.toLowerCase().includes(searchQuery));
+        const matchesCat = (selectedCat === "ALL") || (item.category === selectedCat);
+        return matchesSearch && matchesCat;
+      });
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove("hidden");
+      } else {
+        emptyState.classList.add("hidden");
+      }
+
+      let totalUnits = 0;
+      let lowStockCount = 0;
+      let totalValuation = 0;
+
+      filtered.forEach(item => {
+        totalUnits += Number(item.qty || 0);
+        if (Number(item.qty || 0) <= 2) lowStockCount++;
+        totalValuation += (Number(item.qty || 0) * Number(item.sellingPrice || 0));
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/40 transition border-b border-slate-800/60";
+
+        // Price cells conditioned on role
+        const sellingPriceDisplay = isOwner 
+          ? `₹${Number(item.sellingPrice || 0).toLocaleString('en-IN')}` 
+          : `<span class="text-slate-500 font-mono text-xs select-none">🔒 Restricted</span>`;
+
+        const costPriceDisplay = isOwner 
+          ? `₹${Number(item.costPrice || 0).toLocaleString('en-IN')}` 
+          : `<span class="text-slate-500 font-mono text-xs select-none">🔒 Restricted</span>`;
+
+        const stockBadge = item.qty <= 2 
+          ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">Low: ${item.qty}</span>`
+          : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${item.qty} units</span>`;
+
+        tr.innerHTML = `
+          <td class="py-4 px-4">
+            <div class="font-bold text-white">${escapeHtml(item.name)}</div>
+            <div class="text-xs text-slate-400 flex items-center space-x-2 mt-0.5">
+              <span class="font-mono text-cyan-400 font-semibold">${item.id}</span>
+              <span>•</span>
+              <span>${escapeHtml(item.location || 'Store Main')}</span>
+            </div>
+          </td>
+          <td class="py-4 px-4 text-xs font-medium text-slate-300">
+            <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">${escapeHtml(item.category)}</span>
+          </td>
+          <td class="py-4 px-4 text-center">
+            ${stockBadge}
+          </td>
+          <td class="py-4 px-4 text-center">
+            <div class="inline-flex items-center rounded-lg border border-slate-800 bg-slate-950 p-0.5 space-x-1">
+              <button onclick="adjustQty('${item.id}', -1)" class="w-7 h-7 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition flex items-center justify-center">-1</button>
+              <button onclick="adjustQty('${item.id}', 1)" class="w-7 h-7 rounded bg-slate-900 hover:bg-slate-800 text-cyan-400 text-xs font-bold transition flex items-center justify-center">+1</button>
+            </div>
+          </td>
+          <td class="py-4 px-4 text-right font-semibold text-white">
+            ${sellingPriceDisplay}
+          </td>
+          <td class="py-4 px-4 text-right font-semibold text-slate-300">
+            ${costPriceDisplay}
+          </td>
+          <td class="py-4 px-4 text-center">
+            <div class="flex items-center justify-center space-x-2">
+              <button onclick="editItem('${item.id}')" title="Edit Item" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 transition text-xs font-semibold px-2.5">
+                Edit
+              </button>
+              ${isOwner ? `<button onclick="deleteItem('${item.id}')" title="Delete" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition text-xs font-semibold px-2">✕</button>` : ''}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Update Metrics
+      document.getElementById("metricTotalItems").textContent = inventory.length;
+      document.getElementById("metricTotalUnits").textContent = totalUnits;
+      document.getElementById("metricLowStock").textContent = lowStockCount;
+      document.getElementById("metricTotalValue").textContent = `₹${totalValuation.toLocaleString('en-IN')}`;
+    }
+
+    // Quick Stock Adjustment
+    function adjustQty(id, delta) {
+      const item = inventory.find(i => i.id === id);
+      if (item) {
+        item.qty = Math.max(0, Number(item.qty || 0) + delta);
+        persistInventory();
+        renderTable();
+      }
+    }
+
+    // Modal Add / Edit Operations
+    function openItemModal() {
+      document.getElementById("itemForm").reset();
+      document.getElementById("itemId").value = "";
+      document.getElementById("itemModalTitle").textContent = "Add New Product";
+
+      configurePriceInputsForRole();
+      document.getElementById("itemModal").classList.remove("hidden");
+    }
+
+    function editItem(id) {
+      const item = inventory.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById("itemId").value = item.id;
+      document.getElementById("itemName").value = item.name;
+      document.getElementById("itemCategory").value = item.category;
+      document.getElementById("itemQuantity").value = item.qty;
+      document.getElementById("itemSellingPrice").value = item.sellingPrice || 0;
+      document.getElementById("itemCostPrice").value = item.costPrice || 0;
+      document.getElementById("itemLocation").value = item.location || "";
+
+      document.getElementById("itemModalTitle").textContent = "Edit Product: " + item.id;
+      configurePriceInputsForRole();
+      document.getElementById("itemModal").classList.remove("hidden");
+    }
+
+    function configurePriceInputsForRole() {
+      const isOwner = currentRole === "OWNER";
+      const sellInput = document.getElementById("itemSellingPrice");
+      const costInput = document.getElementById("itemCostPrice");
+      const notice = document.getElementById("priceRoleNotice");
+      const help = document.getElementById("priceLockHelp");
+
+      if (isOwner) {
+        sellInput.disabled = false;
+        costInput.disabled = false;
+        sellInput.type = "number";
+        costInput.type = "number";
+        notice.textContent = "Owner Access Granted";
+        notice.className = "text-[11px] font-medium text-cyan-400";
+        help.classList.add("hidden");
+      } else {
+        sellInput.disabled = true;
+        costInput.disabled = true;
+        sellInput.type = "password";
+        costInput.type = "password";
+        sellInput.value = "••••••";
+        costInput.value = "••••••";
+        notice.textContent = "🔒 Locked to Office Staff";
+        notice.className = "text-[11px] font-medium text-amber-400";
+        help.classList.remove("hidden");
+      }
+    }
+
+    function closeItemModal() {
+      document.getElementById("itemModal").classList.add("hidden");
+    }
+
+    function saveItem(e) {
+      e.preventDefault();
+      const id = document.getElementById("itemId").value;
+      const isOwner = currentRole === "OWNER";
+
+      if (id) {
+        // Edit existing
+        const item = inventory.find(i => i.id === id);
+        if (item) {
+          item.name = document.getElementById("itemName").value.trim();
+          item.category = document.getElementById("itemCategory").value;
+          item.qty = Number(document.getElementById("itemQuantity").value);
+          item.location = document.getElementById("itemLocation").value.trim();
+          
+          // Only owner updates prices
+          if (isOwner) {
+            item.sellingPrice = Number(document.getElementById("itemSellingPrice").value);
+            item.costPrice = Number(document.getElementById("itemCostPrice").value);
+          }
+        }
+      } else {
+        // Create new item
+        const newId = "RC-" + Math.floor(100 + Math.random() * 900);
+        const newItem = {
+          id: newId,
+          name: document.getElementById("itemName").value.trim(),
+          category: document.getElementById("itemCategory").value,
+          qty: Number(document.getElementById("itemQuantity").value),
+          location: document.getElementById("itemLocation").value.trim(),
+          sellingPrice: isOwner ? Number(document.getElementById("itemSellingPrice").value) : 0,
+          costPrice: isOwner ? Number(document.getElementById("itemCostPrice").value) : 0
+        };
+        inventory.unshift(newItem);
+      }
+
+      persistInventory();
+      renderTable();
+      closeItemModal();
+    }
+
+    function deleteItem(id) {
+      if (confirm(`Remove item ${id} from store inventory?`)) {
+        inventory = inventory.filter(i => i.id !== id);
+        persistInventory();
+        renderTable();
+      }
+    }
+
+    // Multi-Device Cloud Sync Engine
+    function openConfigModal() {
+      document.getElementById("syncEndpointInput").value = localStorage.getItem("rcc_sync_endpoint") || "";
+      document.getElementById("configModal").classList.remove("hidden");
+    }
+
+    function closeConfigModal() {
+      document.getElementById("configModal").classList.add("hidden");
+    }
+
+    function saveSyncConfig() {
+      const url = document.getElementById("syncEndpointInput").value.trim();
+      localStorage.setItem("rcc_sync_endpoint", url);
+      closeConfigModal();
+      syncWithCloud();
+    }
+
+    async function triggerBackgroundSync() {
+      const endpoint = localStorage.getItem("rcc_sync_endpoint");
+      if (!endpoint) return;
+
+      document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+      document.getElementById("syncLabel").textContent = "Saving...";
+
+      try {
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "SAVE_INVENTORY", data: inventory, role: currentRole })
+        });
+        document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-emerald-400";
+        document.getElementById("syncLabel").textContent = "Synced";
+      } catch (err) {
+        document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-slate-500";
+        document.getElementById("syncLabel").textContent = "Offline (Cached)";
+      }
+    }
+
+    async function syncWithCloud() {
+      const endpoint = localStorage.getItem("rcc_sync_endpoint");
+      if (!endpoint) {
+        openConfigModal();
+        return;
+      }
+
+      document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-cyan-400 animate-spin";
+      document.getElementById("syncLabel").textContent = "Syncing...";
+
+      try {
+        const res = await fetch(endpoint + "?action=GET_INVENTORY");
+        const cloudData = await res.json();
+        if (Array.isArray(cloudData)) {
+          inventory = cloudData;
+          localStorage.setItem("rcc_inventory", JSON.stringify(inventory));
+          renderTable();
+        }
+        document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-emerald-400";
+        document.getElementById("syncLabel").textContent = "Synced";
+      } catch (err) {
+        document.getElementById("syncDot").className = "w-2 h-2 rounded-full bg-slate-500";
+        document.getElementById("syncLabel").textContent = "Offline (Cached)";
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Start App
+    window.onload = loadInventory;
+  </script>
+</body>
+</html>
